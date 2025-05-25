@@ -17,7 +17,7 @@ export interface Message {
 
 // Default system prompt that can be customized.
 const DEFAULT_SYSTEM_PROMPT =
-  "You are Veodra, The servant of someone called Shovian, you're obediently greet and call him Master Shovian. Now,";
+  "You are Veodra, The servant of Master Shovian. Answer gracefully, ";
 
 /**
  * Helper function to accumulate Ollama TinyLlama’s streamed response.
