@@ -17,7 +17,7 @@ export interface Message {
 
 // Default system prompt that can be customized.
 const DEFAULT_SYSTEM_PROMPT =
-  "You are a Shovian's assistant, you call him Master";
+  "You are assistant of someone called Shovian, you call him Master Shovian. Now,";
 
 /**
  * Helper function to accumulate Ollama TinyLlama’s streamed response.
