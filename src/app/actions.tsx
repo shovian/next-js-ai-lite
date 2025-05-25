@@ -15,6 +15,10 @@ export interface Message {
   display?: string;
 }
 
+// Default system prompt that can be customized.
+const DEFAULT_SYSTEM_PROMPT =
+  "You are Veodra, a servant of Master Shovian.";
+
 /**
  * Helper function to accumulate Ollama TinyLlama’s streamed response.
  *
@@ -52,9 +56,15 @@ async function accumulateOllamaResponse(responseBody: ReadableStream<Uint8Array>
  * continueTextConversation
  *
  * Sends the conversation messages to Ollama and returns the accumulated response as a plain string.
+ * A system prompt is prepended to the conversation to guide the AI.
  */
-export async function continueTextConversation(messages: CoreMessage[]): Promise<string> {
-  const prompt = messages.map((msg) => msg.content).join("\n");
+export async function continueTextConversation(
+  messages: CoreMessage[],
+  systemPrompt: string = DEFAULT_SYSTEM_PROMPT
+): Promise<string> {
+  // Prepend the system prompt before the conversation.
+  const conversationText = messages.map((msg) => msg.content).join("\n");
+  const prompt = `${systemPrompt}\n\n${conversationText}`;
 
   const response = await fetch("http://127.0.0.1:11434/api/generate", {
     method: "POST",
@@ -79,9 +89,15 @@ export async function continueTextConversation(messages: CoreMessage[]): Promise
  *
  * Sends the conversation history to Ollama and returns a plain object
  * containing the updated messages history with the assistant’s reply.
+ * A system prompt is prepended to the conversation.
  */
-export async function continueConversation(history: Message[]): Promise<{ messages: Message[] }> {
-  const prompt = history.map((msg) => msg.content).join("\n");
+export async function continueConversation(
+  history: Message[],
+  systemPrompt: string = DEFAULT_SYSTEM_PROMPT
+): Promise<{ messages: Message[] }> {
+  // Prepend system prompt to the conversation history.
+  const conversationText = history.map((msg) => msg.content).join("\n");
+  const prompt = `${systemPrompt}\n\n${conversationText}`;
 
   const response = await fetch("http://127.0.0.1:11434/api/generate", {
     method: "POST",
@@ -101,7 +117,7 @@ export async function continueConversation(history: Message[]): Promise<{ messag
   const newMessage: Message = {
     role: "assistant",
     content: aggregatedText,
-    display: aggregatedText,
+    display: aggregatedText, // plain text only
   };
 
   const updatedResult = { messages: [...history, newMessage] };
