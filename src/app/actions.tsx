@@ -1,25 +1,30 @@
 'use server';
 
 import { CoreMessage } from 'ai';
-import { ReactNode } from 'react';
 import { z } from 'zod';
-import { Weather } from '@/components/weather';
 
+/**
+ * A plain-JSON message structure where all values are simple types.
+ */
 export interface Message {
   role: 'user' | 'assistant';
   content: string;
-  display?: ReactNode;
+  // Instead of storing a React element in `display`, we store a plain string.
+  display?: string;
 }
 
+// Default system prompt that can be customized.
+const DEFAULT_SYSTEM_PROMPT =
+  "You are a friendly, concise assistant. Respond clearly and directly.";
+
 /**
- * Reads the response stream from Ollama TinyLlama and accumulates only
- * the plain text in the "response" fields of each received JSON chunk.
+ * Helper function to accumulate the response from Ollama TinyLlama.
  *
- * Each streamed chunk from Ollama is a JSON line such as:
- *   {"model":"tinyllama","created_at":"TIMESTAMP","response":" ...", "done":false}
+ * The response is streamed as JSON lines, each with the format:
+ *   { "model": "tinyllama", "created_at": "TIMESTAMP", "response": " ...", "done": false }
  *
- * This function decodes the bytes, splits the text by newlines, parses each line,
- * and appends the extracted text to build a final plain string.
+ * This function decodes the binary stream, splits it into lines,
+ * parses each JSON object, and concatenates the "response" field into one plain string.
  */
 async function accumulateOllamaResponse(responseBody: ReadableStream<Uint8Array>): Promise<string> {
   const reader = responseBody.getReader();
@@ -29,30 +34,40 @@ async function accumulateOllamaResponse(responseBody: ReadableStream<Uint8Array>
   while (true) {
     const { done, value } = await reader.read();
     if (done) break;
-    // Decode the binary chunk.
+    // Decode the chunk.
     const chunk = decoder.decode(value, { stream: true });
-    // Split potentially multiple JSON lines.
+    // Split the chunk into lines (each expected to be a JSON object).
     const lines = chunk.split("\n").filter((line) => line.trim().length > 0);
     for (const line of lines) {
       try {
         const obj = JSON.parse(line);
         aggregatedText += obj.response;
-      } catch (err) {
-        console.error("Error parsing JSON line:", line, err);
+      } catch (error) {
+        console.error("Error parsing JSON line:", line, error);
       }
     }
   }
+  
   return aggregatedText;
 }
 
 /**
- * Streaming Chat using Ollama (TinyLlama).
+ * continueTextConversation
  *
- * Sends the conversation messages to Ollama, accumulates the streamed text response,
+ * Sends the conversation messages to the local Ollama endpoint,
+ * prepends a system prompt, accumulates the streamed response text,
  * and returns a plain string.
+ *
+ * You can pass an optional custom systemPrompt or use the default.
  */
-export async function continueTextConversation(messages: CoreMessage[]): Promise<string> {
-  const prompt = messages.map(msg => msg.content).join("\n");
+export async function continueTextConversation(
+  messages: CoreMessage[],
+  systemPrompt: string = DEFAULT_SYSTEM_PROMPT
+): Promise<string> {
+  // Prepend the system prompt before the conversation.
+  const conversationText = messages.map((msg) => msg.content).join("\n");
+  const prompt = `${systemPrompt}\n${conversationText}`;
+
   const response = await fetch("http://127.0.0.1:11434/api/generate", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -67,20 +82,28 @@ export async function continueTextConversation(messages: CoreMessage[]): Promise
     throw new Error("No response body returned from Ollama");
   }
 
-  // Accumulate and return a plain string.
+  // Accumulate the plain text response.
   const aggregatedText = await accumulateOllamaResponse(response.body);
   return aggregatedText;
 }
 
 /**
- * Generate UI responses via Ollama.
+ * continueConversation
  *
- * Similar to continueTextConversation, but returns a plain object containing the updated
- * message history with the assistant’s reply. Both the "content" and "display" fields
- * will contain the plain text accumulated from the stream.
+ * Sends the conversation history to the local Ollama endpoint,
+ * prepends a system prompt, accumulates the streamed response text,
+ * and returns a plain object that includes the updated messages history.
+ *
+ * Both the "content" and "display" fields contain only plain text.
  */
-export async function continueConversation(history: Message[]): Promise<{ messages: Message[] }> {
-  const prompt = history.map(msg => msg.content).join("\n");
+export async function continueConversation(
+  history: Message[],
+  systemPrompt: string = DEFAULT_SYSTEM_PROMPT
+): Promise<{ messages: Message[] }> {
+  // Prepend system prompt to the conversation history.
+  const conversationText = history.map((msg) => msg.content).join("\n");
+  const prompt = `${systemPrompt}\n${conversationText}`;
+  
   const response = await fetch("http://127.0.0.1:11434/api/generate", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -99,18 +122,18 @@ export async function continueConversation(history: Message[]): Promise<{ messag
   const newMessage: Message = {
     role: "assistant",
     content: aggregatedText,
-    display: aggregatedText, // Using plain text for display
+    display: aggregatedText, // plain text only
   };
 
-  const updated = { messages: [...history, newMessage] };
-  // Deep-serialize to ensure a plain object is returned.
-  return JSON.parse(JSON.stringify(updated));
+  const updatedResult = { messages: [...history, newMessage] };
+  // Deep-serialize to ensure that only plain objects are returned.
+  return JSON.parse(JSON.stringify(updatedResult));
 }
 
 /**
- * Check AI Availability.
+ * checkAIAvailability
  *
- * Since Ollama runs locally without requiring an API key, this always returns true.
+ * Always returns true since Ollama runs locally and does not require an API key.
  */
 export async function checkAIAvailability() {
   return true;
