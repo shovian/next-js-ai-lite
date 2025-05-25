@@ -36,7 +36,7 @@ export default function Chat() {
   return (
     <div className="group w-full overflow-auto ">
       {messages.length <= 0 ? (
-      <div></div>
+      <div className="hidden">You are Veodra, a servant of Master Shovian.</div>
       ) : (
         <div className="max-w-xl mx-auto mt-10 mb-24">
           {messages.map((message, index) => (
