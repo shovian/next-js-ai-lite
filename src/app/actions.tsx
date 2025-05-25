@@ -14,8 +14,8 @@ export interface Message {
 
 /**
  * Streaming Chat using Ollama.
- * This function streams text from Ollama (using TinyLlama) based on the incoming messages.
- * After reading the response stream, it calls `.done()` to finalize and get a plain string.
+ * This function streams text (using TinyLlama via Ollama) and then finalizes
+ * the stream by calling `.done()`, ensuring a plain string is returned.
  */
 export async function continueTextConversation(messages: CoreMessage[]) {
   const response = await fetch("http://127.0.0.1:11434/api/generate", {
@@ -28,22 +28,22 @@ export async function continueTextConversation(messages: CoreMessage[]) {
     }),
   });
 
-  // Get the underlying stream reader from the response body.
-  const reader = response.body?.getReader();
-  if (!reader) {
-    throw new Error("No response stream available.");
+  if (!response.body) {
+    throw new Error("Response body is empty");
   }
-  
-  // Create a streamable value from the reader.
+  const reader = response.body.getReader();
+
+  // Create and finalize the stream to get a plain string value
   const stream = createStreamableValue(reader);
-  // Call .done() to finish streaming and extract a plain value.
-  const finalText = await stream.done(); 
+  const finalText = await stream.done();
   return finalText;
 }
 
 /**
- * Generate UI responses via Ollama.
- * This function uses a streaming UI helper, then finalizes the stream to a plain value before returning.
+ * Generate UI responses using Ollama.
+ * This function calls the Ollama API with the conversation history, then finalizes
+ * the streaming UI value. Before returning, it serializes the display output to ensure
+ * that only plain objects are passed to Client Components.
  */
 export async function continueConversation(history: Message[]) {
   const uiStream = createStreamableUI();
@@ -57,11 +57,11 @@ export async function continueConversation(history: Message[]) {
     }),
   });
 
-  // Parse the final response from Ollama.
   const data = await response.json();
 
-  // Finish the streaming UI and get a plain value.
+  // Finalize the UI stream and force serialization into a plain object
   const finalDisplay = await uiStream.done();
+  const plainDisplay = JSON.parse(JSON.stringify(finalDisplay));
 
   return {
     messages: [
@@ -69,7 +69,7 @@ export async function continueConversation(history: Message[]) {
       {
         role: "assistant",
         content: data.response,
-        display: finalDisplay,
+        display: plainDisplay,
       },
     ],
   };
@@ -77,7 +77,7 @@ export async function continueConversation(history: Message[]) {
 
 /**
  * Check AI availability.
- * Since Ollama runs locally and no API key is needed, this always returns true.
+ * Since Ollama runs locally and no API key is required, this always returns true.
  */
 export async function checkAIAvailability() {
   return true;
