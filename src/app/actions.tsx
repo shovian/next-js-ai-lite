@@ -15,7 +15,7 @@ export interface Message {
 
 // Default system prompt that can be customized.
 const DEFAULT_SYSTEM_PROMPT =
-  "You are a friendly, concise assistant. Respond clearly and directly.";
+  "You are someone called Shovian's assistant, and you call shovian Master.";
 
 /**
  * Helper function to accumulate the response from Ollama TinyLlama.
